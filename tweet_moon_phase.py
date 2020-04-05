@@ -1,0 +1,80 @@
+from my_keys import get_cfg
+from my_keys import get_dark_key
+import tweepy
+import requests
+import json
+import emoji
+import random
+
+lang = "ca"
+exclude = "currently,minutely,hourly,alerts,flags"
+units = "si"
+url = 'https://api.darksky.net/forecast/' + get_dark_key() + '/41.770358,2.154847?lang=' + lang + '&exclude=' + exclude + '&units=' + units
+
+respuesta = requests.get(url)
+#print(respuesta.url)
+respuesta.raise_for_status() # optional but good practice in case the call fails!
+
+def lunar_phase_emoji(lunation_number):
+
+  if lunation_number == 0:
+    moon_emoji = emoji.emojize(':new_moon_face:')
+    fase_cat = "lluna nova."
+  elif lunation_number > 0 and lunation_number<0.25:
+    moon_emoji = emoji.emojize(':waxing_crescent_moon:')
+    fase_cat = "lluna creixent,."
+  elif lunation_number == 0.25:
+    moon_emoji = emoji.emojize(':first_quarter_moon:')
+    fase_cat = "quart creixent."
+  elif lunation_number > 0.25 and lunation_number<0.5:
+    moon_emoji = emoji.emojize(':waxing_gibbous_moon:')
+    fase_cat = "lluna gibosa creixent."
+  elif lunation_number == 0.5:
+    moon_emoji = emoji.emojize(':full_moon:')
+    fase_cat = "lluna plena."
+  elif lunation_number > 0.5 and lunation_number<0.75:
+    moon_emoji = emoji.emojize(':waning_gibbous_moon:')
+    fase_cat = "lluna gibosa minvant."
+  elif lunation_number == 0.75:
+    moon_emoji = emoji.emojize(':last_quarter_moon:') 
+    fase_cat = "quart minvant."
+  elif lunation_number > 0.75:
+    moon_emoji = emoji.emojize('wanning_crescent_moon')
+    fase_cat = "lluna minvant."
+  return (moon_emoji, fase_cat)
+
+
+#print (respuesta.json())
+datos = respuesta.json()
+#accedo a sumary:
+#print datos['hourly']['summary']
+
+lunation_number = datos['daily']['data'][0]['moonPhase']
+
+moon_emoji,fase_cat = lunar_phase_emoji(lunation_number)
+
+print (moon_emoji)
+
+
+fase_lunar = f"Bona nit. Fase lunar d'avui: {moon_emoji} {fase_cat}" 
+
+def get_api(cfg):
+  auth = tweepy.OAuthHandler(cfg['consumer_key'], cfg['consumer_secret'])
+  auth.set_access_token(cfg['access_token'], cfg['access_token_secret'])
+  return tweepy.API(auth)
+
+
+def main():
+  # Fill in the values noted in previous step here
+  cfg = get_cfg()
+
+  api = get_api(cfg)
+  tweet = fase_lunar
+  status = api.update_status(status=tweet)
+  # Yes, tweet is called 'status' rather confusing
+
+if __name__ == "__main__":
+  main()
+
+
+#return respuesta.json()
