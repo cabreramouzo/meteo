@@ -1,4 +1,5 @@
 from my_keys import get_cfg
+from my_keys import get_dark_key
 import tweepy
 import requests
 import json
@@ -8,8 +9,8 @@ import random
 lang = "ca"
 exclude = "minutely,hourly,daily,alerts,flags"
 units = "si"
-url = 'https://api.darksky.net/forecast/01654ad792ff747156ee1423767baa2c/41.770358,2.154847?lang=' + lang + '&exclude=' + exclude + '&units=' + units
-#https://api.darksky.net/forecast/01654ad792ff747156ee1423767baa2c/41.770358,2.154847?lang=ca&exclude=currently,minutely,hourly,alerts,flags&units=si
+url = 'https://api.darksky.net/forecast/' + get_dark_key() + '/41.770358,2.154847?lang=' + lang + '&exclude=' + exclude + '&units=' + units
+
 respuesta = requests.get(url)
 #print(respuesta.url)
 respuesta.raise_for_status() # optional but good practice in case the call fails!
