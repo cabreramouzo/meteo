@@ -17,29 +17,30 @@ respuesta.raise_for_status() # optional but good practice in case the call fails
 
 def lunar_phase_emoji(lunation_number):
 
-  if lunation_number == 0:
+  #if lunation_number == 0:
+  if lunation_number >= 0.90 or lunation_number < 0.10:
     moon_emoji = emoji.emojize(':new_moon_face:')
     fase_cat = "lluna nova."
-  elif lunation_number > 0 and lunation_number<0.25:
+  elif lunation_number >= 0.10 and lunation_number<0.20:
     moon_emoji = emoji.emojize(':waxing_crescent_moon:')
     fase_cat = "lluna creixent,."
-  elif lunation_number == 0.25:
+  elif lunation_number >= 0.20  and lunation_number < 0.30:
     moon_emoji = emoji.emojize(':first_quarter_moon:')
     fase_cat = "quart creixent."
-  elif lunation_number > 0.25 and lunation_number<0.5:
+  elif lunation_number >= 0.30 and lunation_number<0.4:
     moon_emoji = emoji.emojize(':waxing_gibbous_moon:')
     fase_cat = "lluna gibosa creixent."
-  elif lunation_number == 0.5:
+  elif lunation_number >= 0.4 and lunation_number < 0.6:
     moon_emoji = emoji.emojize(':full_moon:')
     fase_cat = "lluna plena."
-  elif lunation_number > 0.5 and lunation_number<0.75:
+  elif lunation_number >= 0.6 and lunation_number<0.7:
     moon_emoji = emoji.emojize(':waning_gibbous_moon:')
     fase_cat = "lluna gibosa minvant."
-  elif lunation_number == 0.75:
+  elif lunation_number >= 0.75 and lunation_number < 0.80:
     moon_emoji = emoji.emojize(':last_quarter_moon:') 
     fase_cat = "quart minvant."
-  elif lunation_number > 0.75:
-    moon_emoji = emoji.emojize('wanning_crescent_moon')
+  elif lunation_number >=  0.80 and lunation_number < 0.90:
+    moon_emoji = emoji.emojize(':wanning_crescent_moon:')
     fase_cat = "lluna minvant."
   return (moon_emoji, fase_cat)
 
