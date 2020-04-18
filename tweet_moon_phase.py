@@ -40,7 +40,7 @@ def lunar_phase_emoji(lunation_number):
     moon_emoji = emoji.emojize(':last_quarter_moon:') 
     fase_cat = "quart minvant."
   elif lunation_number >=  0.80 and lunation_number < 0.90:
-    moon_emoji = emoji.emojize(':wanning_crescent_moon:')
+    moon_emoji = emoji.emojize(':waning_crescent_moon:')
     fase_cat = "lluna minvant."
   return (moon_emoji, fase_cat)
 
