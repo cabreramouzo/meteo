@@ -22,7 +22,7 @@ def lunar_phase_emoji(lunation_number):
   if lunation_number >= 0.98 or lunation_number < 0.02:
     moon_emoji = emoji.emojize(':new_moon_face:')
     fase_cat = "lluna nova."
-  elif lunation_number >= 0.10 and lunation_number<0.20:
+  elif lunation_number >= 0.03 and lunation_number<0.20:
     moon_emoji = emoji.emojize(':waxing_crescent_moon:')
     fase_cat = "lluna creixent,."
   elif lunation_number >= 0.20  and lunation_number < 0.30:
