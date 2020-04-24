@@ -5,6 +5,7 @@ import requests
 import json
 import emoji
 import random
+import logging
 
 lang = "ca"
 exclude = "currently,minutely,hourly,alerts,flags"
@@ -51,13 +52,13 @@ datos = respuesta.json()
 #print datos['hourly']['summary']
 
 lunation_number = datos['daily']['data'][0]['moonPhase']
-
+print(f'l_n={lunation_number}')
 moon_emoji,fase_cat = lunar_phase_emoji(lunation_number)
 
 print (moon_emoji)
 
 
-fase_lunar = f"Bona nit. Fase lunar d'avui: {moon_emoji} {fase_cat}" 
+fase_lunar = f"Bona nit. Fase lunar d'avui: {moon_emoji} {fase_cat}. Nombre llunàtic:{lunation_number}" 
 
 def get_api(cfg):
   auth = tweepy.OAuthHandler(cfg['consumer_key'], cfg['consumer_secret'])
