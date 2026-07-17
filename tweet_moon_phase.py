@@ -1,82 +1,53 @@
 from my_keys import get_cfg
-from my_keys import get_dark_key
+from weatherkit import get_weather
 import tweepy
-import requests
-import json
 import emoji
-import random
-import logging
 
+lat = 41.770358
+lon = 2.154847
 lang = "ca"
-exclude = "currently,minutely,hourly,alerts,flags"
-units = "si"
-url = 'https://api.darksky.net/forecast/' + get_dark_key() + '/41.770358,2.154847?lang=' + lang + '&exclude=' + exclude + '&units=' + units
 
-respuesta = requests.get(url)
-#print(respuesta.url)
-respuesta.raise_for_status() # optional but good practice in case the call fails!
-
-def lunar_phase_emoji(lunation_number):
-
-  #if lunation_number == 0:
-  if lunation_number >= 0.98 or lunation_number < 0.02:
-    moon_emoji = emoji.emojize(':new_moon_face:')
-    fase_cat = "lluna nova"
-  elif lunation_number >= 0.03 and lunation_number<0.20:
-    moon_emoji = emoji.emojize(':waxing_crescent_moon:')
-    fase_cat = "lluna creixent"
-  elif lunation_number >= 0.20  and lunation_number < 0.30:
-    moon_emoji = emoji.emojize(':first_quarter_moon:')
-    fase_cat = "quart creixent."
-  elif lunation_number >= 0.30 and lunation_number<0.46:
-    moon_emoji = emoji.emojize(':waxing_gibbous_moon:')
-    fase_cat = "lluna gibosa creixent."
-  elif lunation_number >= 0.46 and lunation_number < 0.53:
-    moon_emoji = emoji.emojize(':full_moon:')
-    fase_cat = "lluna plena."
-  elif lunation_number >= 0.53 and lunation_number<0.75:
-    moon_emoji = emoji.emojize(':waning_gibbous_moon:')
-    fase_cat = "lluna gibosa minvant"
-  elif lunation_number >= 0.75 and lunation_number < 0.80:
-    moon_emoji = emoji.emojize(':last_quarter_moon:') 
-    fase_cat = "quart minvant."
-  elif lunation_number >=  0.80 and lunation_number < 0.98:
-    moon_emoji = emoji.emojize(':waning_crescent_moon:')
-    fase_cat = "lluna minvant"
-  return (moon_emoji, fase_cat)
+# WeatherKit devuelve la fase lunar como enum, ya no hace falta el numero
+# de lunacion ni sus rangos: moonPhase -> (emoji, fase en catalan)
+phases_dict = {
+  "new": (emoji.emojize(':new_moon_face:'), "lluna nova"),
+  "waxingCrescent": (emoji.emojize(':waxing_crescent_moon:'), "lluna creixent"),
+  "firstQuarter": (emoji.emojize(':first_quarter_moon:'), "quart creixent"),
+  "waxingGibbous": (emoji.emojize(':waxing_gibbous_moon:'), "lluna gibosa creixent"),
+  "full": (emoji.emojize(':full_moon:'), "lluna plena"),
+  "waningGibbous": (emoji.emojize(':waning_gibbous_moon:'), "lluna gibosa minvant"),
+  "thirdQuarter": (emoji.emojize(':last_quarter_moon:'), "quart minvant"),
+  "lastQuarter": (emoji.emojize(':last_quarter_moon:'), "quart minvant"),
+  "waningCrescent": (emoji.emojize(':waning_crescent_moon:'), "lluna minvant"),
+}
 
 
-#print (respuesta.json())
-datos = respuesta.json()
-#accedo a sumary:
-#print datos['hourly']['summary']
+def build_tweet(datos):
+  fase = datos['forecastDaily']['days'][0]['moonPhase']
+  print(f'moonPhase={fase}')
 
-lunation_number = datos['daily']['data'][0]['moonPhase']
-print(f'l_n={lunation_number}')
-moon_emoji,fase_cat = lunar_phase_emoji(lunation_number)
+  moon_emoji, fase_cat = phases_dict[fase]
+  print(moon_emoji)
 
-print (moon_emoji)
+  return f"Bona nit. Fase lunar d'avui: {moon_emoji} {fase_cat}."
 
 
-fase_lunar = f"Bona nit. Fase lunar d'avui: {moon_emoji} {fase_cat}. Nombre llunàtic: {lunation_number}" 
-
-def get_api(cfg):
-  auth = tweepy.OAuthHandler(cfg['consumer_key'], cfg['consumer_secret'])
-  auth.set_access_token(cfg['access_token'], cfg['access_token_secret'])
-  return tweepy.API(auth)
+def get_client(cfg):
+  return tweepy.Client(
+    consumer_key=cfg['consumer_key'],
+    consumer_secret=cfg['consumer_secret'],
+    access_token=cfg['access_token'],
+    access_token_secret=cfg['access_token_secret'],
+  )
 
 
 def main():
-  # Fill in the values noted in previous step here
-  cfg = get_cfg()
+  datos = get_weather(lat, lon, "forecastDaily", lang=lang)
+  tweet = build_tweet(datos)
 
-  api = get_api(cfg)
-  tweet = fase_lunar
-  status = api.update_status(status=tweet)
-  # Yes, tweet is called 'status' rather confusing
+  client = get_client(get_cfg())
+  client.create_tweet(text=tweet)
+
 
 if __name__ == "__main__":
   main()
-
-
-#return respuesta.json()
