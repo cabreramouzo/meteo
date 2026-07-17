@@ -15,10 +15,17 @@ lat = 41.770358
 lon = 2.154847
 
 
+def _dry(request):
+  # con ?dry=1 se construye el tweet pero no se publica (para probar deploys)
+  return request.args.get('dry')
+
+
 @functions_framework.http
 def tweet_forecast(request):
   # prediccion general de Catalunya (Meteocat), en hilo si no cabe en un tweet
   list_tweets = meteocat.build_forecast_tweets()
+  if _dry(request):
+    return {"dry": True, "tweets": list_tweets}
 
   client = get_client()
   tweet = client.create_tweet(text=list_tweets[0])
@@ -34,6 +41,8 @@ def tweet_current(request):
   # tiempo actual del pueblo (WeatherKit)
   datos = get_weather(lat, lon, "currentWeather")
   tweet = tweet_current_meteo.build_tweet(datos)
+  if _dry(request):
+    return {"dry": True, "tweets": [tweet]}
 
   get_client().create_tweet(text=tweet)
   return "OK"
@@ -44,6 +53,8 @@ def tweet_moon(request):
   # fase lunar de hoy (WeatherKit)
   datos = get_weather(lat, lon, "forecastDaily")
   tweet = tweet_moon_phase.build_tweet(datos)
+  if _dry(request):
+    return {"dry": True, "tweets": [tweet]}
 
   get_client().create_tweet(text=tweet)
   return "OK"
