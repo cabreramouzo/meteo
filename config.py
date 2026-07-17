@@ -47,3 +47,48 @@ def get_meteocat_key():
     return key
   from my_keys import get_meteocat_key as local_key
   return local_key()
+
+
+def get_netatmo_cfg():
+  cfg = _from_env({
+    'client_id': 'NETATMO_CLIENT_ID',
+    'client_secret': 'NETATMO_CLIENT_SECRET',
+  })
+  if cfg:
+    return cfg
+  from my_keys import get_netatmo_cfg as local_cfg
+  return local_cfg()
+
+
+# El refresh token de Netatmo rota en cada uso, asi que no puede ir en una
+# variable de entorno fija: en GCF vive como secreto que se reescribe, y en
+# local como fichero.
+
+NETATMO_TOKEN_SECRET = 'netatmo-refresh-token'
+NETATMO_TOKEN_FILE = os.path.expanduser('~/.netatmo_refresh_token')
+
+
+def _on_gcp():
+  return bool(os.environ.get('K_SERVICE'))
+
+
+def load_netatmo_refresh_token():
+  if _on_gcp():
+    from google.cloud import secretmanager
+    client = secretmanager.SecretManagerServiceClient()
+    name = f"projects/{os.environ['GCP_PROJECT']}/secrets/{NETATMO_TOKEN_SECRET}/versions/latest"
+    return client.access_secret_version(name=name).payload.data.decode().strip()
+  with open(NETATMO_TOKEN_FILE) as f:
+    return f.read().strip()
+
+
+def save_netatmo_refresh_token(token):
+  if _on_gcp():
+    from google.cloud import secretmanager
+    client = secretmanager.SecretManagerServiceClient()
+    parent = f"projects/{os.environ['GCP_PROJECT']}/secrets/{NETATMO_TOKEN_SECRET}"
+    client.add_secret_version(parent=parent, payload={'data': token.encode()})
+  else:
+    with open(NETATMO_TOKEN_FILE, 'w') as f:
+      f.write(token)
+    os.chmod(NETATMO_TOKEN_FILE, 0o600)

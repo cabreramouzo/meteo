@@ -5,7 +5,10 @@ from time import sleep
 
 import functions_framework
 
+import emoji
+
 import meteocat
+import netatmo
 import tweet_current_meteo
 import tweet_moon_phase
 from twitter import get_client
@@ -58,3 +61,39 @@ def tweet_moon(request):
 
   get_client().create_tweet(text=tweet)
   return "OK"
+
+
+def _coma(valor):
+  return f'{valor:.1f}'.replace('.', ',')
+
+
+@functions_framework.http
+def check_freeze(request):
+  # tuitea solo en el cruce de 0 °C: la lectura anterior era >= 0 y la
+  # actual < 0 (asi no se repite el aviso toda la noche)
+  temps = netatmo.get_last_temperatures(2)
+  if _dry(request):
+    return {"dry": True, "temps": temps}
+  if len(temps) < 2:
+    return "not enough data"
+
+  anterior, actual = temps
+  if anterior >= 0 and actual < 0:
+    tweet = emoji.emojize(':snowflake:') + f" Glaçada a Castellcir! Ara mateix {_coma(actual)} °C."
+    get_client().create_tweet(text=tweet)
+    return "tweeted"
+  return "no crossing"
+
+
+@functions_framework.http
+def tweet_rain(request):
+  # lluvia acumulada de ayer; solo tuitea si llovio algo medible
+  litros = netatmo.get_yesterday_rain()
+  if _dry(request):
+    return {"dry": True, "rain": litros}
+  if litros < 0.1:
+    return "no rain"
+
+  tweet = emoji.emojize(':cloud_with_rain:') + f" Ahir es van recollir {_coma(litros)} l/m² a Castellcir."
+  get_client().create_tweet(text=tweet)
+  return "tweeted"

@@ -9,6 +9,10 @@ Tres funciones, pensadas para Google Cloud Functions (gen2) + Cloud Scheduler:
 | `tweet_forecast` | Predicción general de Catalunya (en hilo si no cabe) | Meteocat |
 | `tweet_current` | Tiempo actual del pueblo (temp, humedad, presión) | Apple WeatherKit |
 | `tweet_moon` | Fase lunar del día | Apple WeatherKit |
+| `check_freeze` | Aviso al cruzar 0 °C (solo en el cruce, no repite) | Netatmo |
+| `tweet_rain` | Lluvia acumulada de ayer, solo si llovió (≥0,1 l/m²) | Netatmo |
+
+Todas aceptan `?dry=1`: construyen la respuesta pero no publican.
 
 ## Credenciales
 
@@ -24,6 +28,15 @@ Por variables de entorno (en local, si faltan, se usa `my_keys.py`, que está en
 | `WK_KEY_ID` | ID de la clave WeatherKit (los 10 caracteres del AuthKey_XXX.p8) |
 | `WK_PRIVATE_KEY` | Contenido PEM completo del fichero `.p8` |
 | `METEOCAT_API_KEY` | API key de Meteocat |
+| `NETATMO_CLIENT_ID` / `NETATMO_CLIENT_SECRET` | App de Netatmo (dev.netatmo.com) |
+| `GCP_PROJECT` | ID del proyecto (para que la función reescriba el secreto del token) |
+
+El refresh token de Netatmo **rota en cada uso**, así que no va en variable de
+entorno: vive en el secreto `netatmo-refresh-token` (en GCF, la propia función
+guarda el token nuevo como versión nueva del secreto — el service account
+necesita `roles/secretmanager.secretVersionAdder` sobre ese secreto) o en
+`~/.netatmo_refresh_token` (en local). El token inicial se saca del "Token
+generator" de la app de Netatmo con scope `read_station`.
 
 ## Probar en local
 

@@ -32,3 +32,14 @@ def get_weatherkit_cfg():
 def get_meteocat_key():
   # API key de Meteocat (apidocs.meteocat.gencat.cat)
   return '...'
+
+
+def get_netatmo_cfg():
+  # App de Netatmo (dev.netatmo.com > My apps). El refresh token inicial se
+  # genera con el "Token generator" de la app (scope read_station) y se
+  # guarda en ~/.netatmo_refresh_token (en local) o en el secreto
+  # netatmo-refresh-token (en GCF) — ojo: rota en cada uso.
+  return {
+    'client_id': '...',
+    'client_secret': '...',
+  }
