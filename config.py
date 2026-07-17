@@ -87,7 +87,12 @@ def save_netatmo_refresh_token(token):
     from google.cloud import secretmanager
     client = secretmanager.SecretManagerServiceClient()
     parent = f"projects/{os.environ['GCP_PROJECT']}/secrets/{NETATMO_TOKEN_SECRET}"
-    client.add_secret_version(parent=parent, payload={'data': token.encode()})
+    nueva = client.add_secret_version(parent=parent, payload={'data': token.encode()})
+    # el token rota cada pocos minutos en invierno y Secret Manager cobra
+    # por version activa: destruimos las viejas al guardar la nueva
+    for v in client.list_secret_versions(request={'parent': parent}):
+      if v.name != nueva.name and v.state.name != 'DESTROYED':
+        client.destroy_secret_version(name=v.name)
   else:
     with open(NETATMO_TOKEN_FILE, 'w') as f:
       f.write(token)

@@ -42,8 +42,15 @@ def _getmeasure(token, device_id, module_id, **params):
                    params={'device_id': device_id, 'module_id': module_id,
                            'optimize': 'false', **params})
   r.raise_for_status()
-  body = r.json()['body']  # {timestamp: [valor]}
-  return [v[0] for _, v in sorted(body.items(), key=lambda kv: int(kv[0]))]
+  body = r.json()['body']
+  # segun el caso llega como {timestamp: [valor]} o como lista (vacia si el
+  # modulo no ha reportado, p.ej. sin bateria) de {beg_time, value: [[v]]}
+  if isinstance(body, dict):
+    return [v[0] for _, v in sorted(body.items(), key=lambda kv: int(kv[0]))]
+  valores = []
+  for tramo in body:
+    valores.extend(v[0] for v in tramo.get('value', []))
+  return valores
 
 
 def get_last_temperatures(n=2):
