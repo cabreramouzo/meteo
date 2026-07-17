@@ -102,13 +102,18 @@ def prediccio_general_catalunya(variable="estatDelCel") -> str:
   return variables.get(variable, variables["estatDelCel"])
 
 
-# check if tweet is longer than 280 characters, then split into chunks
+# limite real de X es 280, pero los emojis cuentan como 2 caracteres:
+# dejamos margen
+TWEET_MAX = 275
+
+
+# check if tweet is longer than TWEET_MAX characters, then split into chunks
 def joiner(chunks):
   i = 0
   newchunks = []
   while (i < len(chunks)):
     try:
-      if len(chunks[i]) + len(chunks[i + 1]) < 280:
+      if len(chunks[i]) + 2 + len(chunks[i + 1]) <= TWEET_MAX:
         # put periods back
         newchunks.append(chunks[i] + '. ' + chunks[i + 1])
         i += 1
@@ -122,6 +127,20 @@ def joiner(chunks):
     return chunks
   else:
     return joiner(newchunks)
+
+
+def split_long(text):
+  # una frase suelta mas larga que TWEET_MAX se parte por el ultimo espacio
+  # que quepa, marcando la continuacion con puntos suspensivos
+  pieces = []
+  while len(text) > TWEET_MAX:
+    cut = text.rfind(' ', 0, TWEET_MAX - 1)
+    if cut <= 0:
+      cut = TWEET_MAX - 1
+    pieces.append(text[:cut] + '…')
+    text = '…' + text[cut:].lstrip()
+  pieces.append(text)
+  return pieces
 
 
 def build_forecast_tweets():
@@ -139,4 +158,8 @@ def build_forecast_tweets():
 
   # split only after periods followed by whitespace
   chunks = re.split(r'\.\s', tweet_large_text)
-  return joiner(chunks)
+
+  tweets = []
+  for tweet in joiner(chunks):
+    tweets.extend(split_long(tweet) if len(tweet) > TWEET_MAX else [tweet])
+  return tweets
