@@ -1,16 +1,13 @@
 import time
 import jwt
 import requests
-from my_keys import get_weatherkit_cfg
+from config import get_weatherkit_cfg
 
 WEATHERKIT_URL = "https://weatherkit.apple.com/api/v1/weather"
 
 
 def make_token(cfg):
   # WeatherKit exige un JWT ES256 con la cabecera extra "id" = "<team_id>.<service_id>"
-  with open(cfg['key_path']) as f:
-    private_key = f.read()
-
   now = int(time.time())
   payload = {
     'iss': cfg['team_id'],
@@ -22,7 +19,7 @@ def make_token(cfg):
     'kid': cfg['key_id'],
     'id': f"{cfg['team_id']}.{cfg['service_id']}",
   }
-  return jwt.encode(payload, private_key, algorithm='ES256', headers=headers)
+  return jwt.encode(payload, cfg['private_key'], algorithm='ES256', headers=headers)
 
 
 def get_weather(lat, lon, data_sets, lang='ca', timezone='Europe/Madrid'):

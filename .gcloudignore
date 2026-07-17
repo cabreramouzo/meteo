@@ -1,0 +1,9 @@
+# Que NUNCA suban credenciales locales ni morralla al deploy
+my_keys.py
+*.p8
+.git
+.gitignore
+__pycache__/
+venv/
+.DS_Store
+README.md

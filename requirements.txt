@@ -2,3 +2,4 @@ requests
 tweepy>=4.14
 emoji
 PyJWT[crypto]>=2.8
+functions-framework

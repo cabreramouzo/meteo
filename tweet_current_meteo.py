@@ -1,6 +1,5 @@
-from my_keys import get_cfg
 from weatherkit import get_weather
-import tweepy
+from twitter import get_client
 import emoji
 import random
 
@@ -98,21 +97,11 @@ def build_tweet(datos):
   return sumario_actual + " " + icono + " " + temp_humedad_pres_actual
 
 
-def get_client(cfg):
-  return tweepy.Client(
-    consumer_key=cfg['consumer_key'],
-    consumer_secret=cfg['consumer_secret'],
-    access_token=cfg['access_token'],
-    access_token_secret=cfg['access_token_secret'],
-  )
-
-
 def main():
   datos = get_weather(lat, lon, "currentWeather", lang=lang)
   tweet = build_tweet(datos)
 
-  client = get_client(get_cfg())
-  client.create_tweet(text=tweet)
+  get_client().create_tweet(text=tweet)
 
 
 if __name__ == "__main__":

@@ -27,3 +27,8 @@ def get_weatherkit_cfg():
     'key_id': 'XXXXXXXXXX',
     'key_path': '/ruta/a/AuthKey_XXXXXXXXXX.p8',
   }
+
+
+def get_meteocat_key():
+  # API key de Meteocat (apidocs.meteocat.gencat.cat)
+  return '...'
