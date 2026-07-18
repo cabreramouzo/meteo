@@ -63,6 +63,28 @@ def tweet_moon(request):
   return "OK"
 
 
+@functions_framework.http
+def tweet_warnings(request):
+  # avisos SMP de Meteocat en firme que afecten a la comarca, emitidos desde
+  # la ultima comprobacion (cada 3 h): cada aviso se tuitea una sola vez
+  textos = [meteocat.build_warning_tweet(av) for av in meteocat.get_new_comarca_warnings()]
+  if _dry(request):
+    return {"dry": True, "tweets": textos}
+  if not textos:
+    return "no new warnings"
+
+  client = get_client()
+  for texto in textos:
+    tweet = None
+    for parte in meteocat.split_long(texto):
+      if tweet is None:
+        tweet = client.create_tweet(text=parte)
+      else:
+        sleep(5)  # delay for API call
+        tweet = client.create_tweet(text=parte, in_reply_to_tweet_id=tweet.data["id"])
+  return "tweeted"
+
+
 def _coma(valor):
   return f'{valor:.1f}'.replace('.', ',')
 

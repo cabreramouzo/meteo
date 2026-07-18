@@ -11,6 +11,7 @@ Tres funciones, pensadas para Google Cloud Functions (gen2) + Cloud Scheduler:
 | `tweet_moon` | Fase lunar del día | Apple WeatherKit |
 | `check_freeze` | Aviso al cruzar 0 °C (solo en el cruce, no repite) | Netatmo |
 | `tweet_rain` | Lluvia acumulada de ayer, solo si llovió (≥0,1 l/m²) | Netatmo |
+| `tweet_warnings` | Avisos SMP en firme que afecten al Moianès (cada aviso una sola vez) | Meteocat |
 
 Todas aceptan `?dry=1`: construyen la respuesta pero no publican.
 

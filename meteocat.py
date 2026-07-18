@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import re
 import emoji
@@ -141,6 +141,82 @@ def split_long(text):
     text = '…' + text[cut:].lstrip()
   pieces.append(text)
   return pieces
+
+
+DIES_SETMANA = ['dilluns', 'dimarts', 'dimecres', 'dijous', 'divendres', 'dissabte', 'diumenge']
+
+# emoji segun el meteoro del aviso SMP (por palabra clave del nombre)
+warning_emojis = [
+  ('calor', emoji.emojize(':hot_face:')),
+  ('fred', emoji.emojize(':cold_face:')),
+  ('neu', emoji.emojize(':snowflake:')),
+  ('pluja', emoji.emojize(':cloud_with_rain:')),
+  ('tempesta', emoji.emojize(':cloud_with_lightning:')),
+  ('llamps', emoji.emojize(':cloud_with_lightning:')),
+  ('vent', emoji.emojize(':dashing_away:')),
+  ('mar', emoji.emojize(':water_wave:')),
+]
+
+
+def warning_emoji(meteor):
+  nombre = meteor.lower()
+  for clave, icono in warning_emojis:
+    if clave in nombre:
+      return icono
+  return emoji.emojize(':warning:')
+
+
+def get_new_comarca_warnings(window_hours=3.25):
+  """Avisos SMP en firme (no preavisos) emitidos en las ultimas window_hours
+  con afectacion sobre la comarca. La ventana ligeramente mayor que el
+  intervalo del scheduler evita perder avisos por el filo del reloj."""
+  r = requests.get('https://api.meteo.cat/pronostic/v1/smp/episodis-oberts', headers=_headers())
+  r.raise_for_status()
+
+  ahora = datetime.now(timezone.utc)
+  resultado = []
+  for ep in r.json():
+    candidatos = []
+    for av in ep.get('avisos', []):
+      # al ampliar un episodio Meteocat re-emite el aviso con dataEmisio
+      # nueva: si la ampliacion pasa a incluir la comarca, se tuiteara
+      if av.get('tipus') != 'Avís':
+        continue
+      emisio = datetime.strptime(av['dataEmisio'], '%Y-%m-%dT%H:%MZ').replace(tzinfo=timezone.utc)
+      if ahora - emisio > timedelta(hours=window_hours):
+        continue
+
+      franjas = []
+      for evo in av.get('evolucions') or []:
+        for per in evo.get('periodes') or []:
+          for a in per.get('afectacions') or []:
+            if a.get('idComarca') == ID_COMARCA:
+              franjas.append((evo['dia'][:10], per['nom'], a.get('perill', 1), a.get('llindar') or ''))
+      if franjas:
+        candidatos.append((emisio, franjas))
+
+    if candidatos:
+      _, franjas = max(candidatos)  # la emision mas reciente del episodio
+      resultado.append({'meteor': ep['meteor']['nom'], 'franjas': franjas})
+  return resultado
+
+
+def build_warning_tweet(aviso):
+  franjas = aviso['franjas']
+  max_perill = max(f[2] for f in franjas)
+  llindar = next((f[3] for f in franjas if f[3]), '')
+
+  detalles = []
+  for dia in sorted({f[0] for f in franjas}):
+    nom_dia = DIES_SETMANA[datetime.strptime(dia, '%Y-%m-%d').weekday()]
+    hores = ' i '.join(f"de {p.replace('-', ' a ')} h" for f in franjas if f[0] == dia for p in [f[1]])
+    detalles.append(f'{nom_dia} {hores}')
+
+  texto = warning_emoji(aviso['meteor']) + f" Meteocat activa un avís per {aviso['meteor'].lower()} al Moianès"
+  if llindar:
+    texto += f' ({llindar.lower()})'
+  texto += ': ' + '; '.join(detalles) + f'. Grau de perill: {max_perill}/6.'
+  return texto
 
 
 def build_forecast_tweets():
