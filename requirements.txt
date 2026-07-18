@@ -4,3 +4,4 @@ emoji
 PyJWT[crypto]>=2.8
 functions-framework
 google-cloud-secret-manager
+pillow
