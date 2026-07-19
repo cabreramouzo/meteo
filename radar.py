@@ -24,6 +24,9 @@ RADAR_ZOOM, RADAR_SIZE, RADAR_ESCALA = 7, 512, 2  # 512*2 = 1024 px globales/til
 
 RADI_ALARMA_KM = 10.0
 RADI_ESCANEIG_KM = 40.0  # hasta donde buscamos el eco mas cercano
+RADI_IMPACTE_KM = 3.0    # "pasa por el pueblo" = eco previsto a menos de esto
+# solo cuentan masas de lluvia grandes (frentes, no chubascos sueltos):
+AREA_MINIMA_KM2 = 50.0
 # umbral sobre la escala de grises dBZ de RainViewer (color 0): filtra
 # ecos debiles (virga, llovizna residual) que no suelen llegar al suelo
 GRIS_MINIM = 40
@@ -46,7 +49,7 @@ def _village_px():
 
 def get_frames():
   maps = requests.get(API_MAPS, headers=UA, timeout=20).json()
-  return maps['host'], maps['radar']['past']
+  return maps['host'], maps['radar']['past'], maps['radar'].get('nowcast') or []
 
 
 def _stitch(url_fn, tile_px, radi_km, escala=1, resample=Image.BILINEAR):
@@ -82,22 +85,84 @@ def _radar_url(host, frame, color, options):
   return lambda xt, yt: f"{host}{frame['path']}/{RADAR_SIZE}/{RADAR_ZOOM}/{xt}/{yt}/{color}/{options}.png"
 
 
-def nearest_echo_km(host, frame):
-  """Distancia en km del eco de precipitacion mas cercano al pueblo,
-  o None si no hay ninguno dentro de RADI_ESCANEIG_KM."""
+def _components(pixels):
+  """Agrupa pixeles de eco en componentes conexas (8-conectividad)."""
+  restantes = set(pixels)
+  comps = []
+  while restantes:
+    pila = [restantes.pop()]
+    comp = list(pila)
+    while pila:
+      x, y = pila.pop()
+      for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+          v = (x + dx, y + dy)
+          if v in restantes:
+            restantes.remove(v)
+            pila.append(v)
+            comp.append(v)
+    comps.append(comp)
+  return comps
+
+
+def big_masses(host, frame):
+  """Masas de lluvia de area >= AREA_MINIMA_KM2 dentro del radio de
+  escaneo. Devuelve [{area_km2, dist_km, centre_km}] con el centroide en
+  km relativos al pueblo."""
   # color 0 = escala de grises con los dBZ, sin suavizar: para medir
   canvas, (vx, vy) = _stitch(_radar_url(host, frame, 0, '0_0'), RADAR_SIZE * RADAR_ESCALA,
                              RADI_ESCANEIG_KM, escala=RADAR_ESCALA, resample=Image.NEAREST)
-
   kmpx = km_per_pixel()
   ample = canvas.width
-  minima = None
-  for i, (r, g, b, a) in enumerate(canvas.getdata()):
-    if a > 0 and r >= GRIS_MINIM:
-      dist = math.hypot(i % ample - vx, i // ample - vy) * kmpx
-      if dist <= RADI_ESCANEIG_KM and (minima is None or dist < minima):
-        minima = dist
-  return minima
+  r_px = RADI_ESCANEIG_KM / kmpx
+  ecos = [(i % ample, i // ample) for i, (r, g, b, a) in enumerate(canvas.getdata())
+          if a > 0 and r >= GRIS_MINIM
+          and abs(i % ample - vx) <= r_px and abs(i // ample - vy) <= r_px]
+
+  masas = []
+  for comp in _components(ecos):
+    area = len(comp) * kmpx * kmpx
+    if area < AREA_MINIMA_KM2:
+      continue
+    dist = min(math.hypot(x - vx, y - vy) for x, y in comp) * kmpx
+    if dist > RADI_ESCANEIG_KM:
+      continue
+    cx = sum(x for x, _ in comp) / len(comp)
+    cy = sum(y for _, y in comp) / len(comp)
+    masas.append({'area_km2': round(area, 1), 'dist_km': round(dist, 1),
+                  'centre_km': ((cx - vx) * kmpx, (cy - vy) * kmpx)})
+  return masas
+
+
+def nearest_mass_km(masas):
+  return min((m['dist_km'] for m in masas), default=None)
+
+
+def impact_predicted(masas_abans, masas_ara, horitzo_min=90):
+  """Sin nowcast: extrapola el movimiento de la masa mas cercana (centroide
+  hace 30 min -> ahora) y mira si en el horizonte dado pasara a menos de
+  RADI_IMPACTE_KM del pueblo."""
+  if not masas_ara:
+    return False
+  masa = min(masas_ara, key=lambda m: m['dist_km'])
+  if masa['dist_km'] <= RADI_IMPACTE_KM:
+    return True
+  if not masas_abans:
+    return False
+  cx, cy = masa['centre_km']
+  # la masa de hace 30 min con el centroide mas parecido
+  px, py = min((m['centre_km'] for m in masas_abans),
+               key=lambda c: math.hypot(c[0] - cx, c[1] - cy))
+  vx30, vy30 = cx - px, cy - py  # km por 30 min
+  if math.hypot(vx30, vy30) < 1:  # practicamente estatica
+    return False
+  # seguimos el centroide: hay impacto si pasa a menos del radio de
+  # impacto mas el radio efectivo de la propia masa
+  llindar = RADI_IMPACTE_KM + math.sqrt(masa['area_km2'] / math.pi)
+  for t in range(10, horitzo_min + 1, 10):
+    if math.hypot(cx + vx30 * t / 30, cy + vy30 * t / 30) <= llindar:
+      return True
+  return False
 
 
 def build_radar_image(host, frame, mida=480):
