@@ -31,12 +31,15 @@ AREA_MINIMA_KM2 = 50.0
 # umbral sobre la escala de grises dBZ de RainViewer (color 0): filtra
 # ecos debiles (virga, llovizna residual) que no suelen llegar al suelo
 GRIS_MINIM = 40
-# refractario: no re-disparar si ya llovia sobre el pueblo en alguno de los
-# ultimos N frames (~10 min cada uno). Un frente que cruza sigue "dentro"
-# mientras pasa, asi que solo un frente nuevo tras un claro re-arma
+# ventana de historia (frames de ~10 min) para decidir el re-armado
 REFRACTARI_FRAMES = 6
-# eco dentro del disco de alarma para considerar que "llueve sobre el pueblo"
-LLIND_INTERIOR_KM2 = 20.0
+# histeresis (dos umbrales) sobre el eco dentro del disco de alarma: la
+# tormenta se considera activa por encima de LLIND_ACTIU y en calma por
+# debajo de LLIND_CALMA. La alarma se re-arma tras una calma, asi un frente
+# que cruza no repite, pero una tormenta que s'afluixa i es reanima si torna
+# a avisar
+LLIND_ACTIU_KM2 = 40.0
+LLIND_CALMA_KM2 = 5.0
 
 API_MAPS = 'https://api.rainviewer.com/public/weather-maps.json'
 UA = {'User-Agent': 'meteoCastellcir-bot/1.0 (+https://twitter.com/meteoCastellcir)'}
@@ -161,8 +164,20 @@ def echo_area_within_km2(host, frame, radi_km=RADI_ALARMA_KM):
   return n * kmpx * kmpx
 
 
-def raining_over_village(host, frame):
-  return echo_area_within_km2(host, frame) >= LLIND_INTERIOR_KM2
+def armed_after_lull(intensitats):
+  """intensitats: eco (km2) dentro del disco de alarma en los frames
+  anteriores, en orden cronologico. Devuelve si la alarma esta re-armada:
+  hubo una calma (<= LLIND_CALMA_KM2) despues del ultimo tramo con tormenta
+  activa (>= LLIND_ACTIU_KM2). Histeresis: un front que travessa no repeteix
+  (sigue actiu tot el rato), pero si s'afluixa fins a la calma i es reanima,
+  torna a armar-se."""
+  armat = True
+  for a in intensitats:
+    if a >= LLIND_ACTIU_KM2:
+      armat = False
+    elif a <= LLIND_CALMA_KM2:
+      armat = True
+  return armat
 
 
 def impact_predicted(masas_abans, masas_ara, horitzo_min=90):

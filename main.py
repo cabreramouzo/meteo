@@ -112,9 +112,9 @@ def check_freeze(request):
 @functions_framework.http
 def check_rain_radar(request):
   # alarma de lluvia: solo cuando una masa grande (>= AREA_MINIMA_KM2, un
-  # frente y no un chubasco suelto) cruza el radio de alarma Y su
-  # trayectoria prevista pasa por el pueblo. Cruce = hace ~30 min estaba
-  # fuera; asi cada frente tuitea una sola vez
+  # frente y no un chubasco suelto) esta en el radio de alarma Y su
+  # trayectoria prevista pasa por el pueblo. La histeresis evita repetir
+  # con el mismo frente pero re-arma si la tormenta se afluixa y se reanima
   host, past, nowcast = radar.get_frames()
   masas_ara = radar.big_masses(host, past[-1])
   masas_abans = radar.big_masses(host, past[max(0, len(past) - 4)])
@@ -130,17 +130,19 @@ def check_rain_radar(request):
   else:
     impacte = radar.impact_predicted(masas_abans, masas_ara)
 
-  # refractario: un frente que cruza sigue sobre el pueblo varios frames;
-  # solo disparamos si NO llovia sobre el pueblo en los frames anteriores
+  # re-armado por histeresis sobre la intensidad de eco de los frames
+  # anteriores: solo disparamos si hubo una calma desde la ultima tormenta
   previos = past[max(0, len(past) - 1 - radar.REFRACTARI_FRAMES):-1]
-  ja_plovia = any(radar.raining_over_village(host, f) for f in previos)
+  intens_previs = [radar.echo_area_within_km2(host, f) for f in previos]
+  armat = radar.armed_after_lull(intens_previs)
 
   arribada = ara is not None and ara <= radar.RADI_ALARMA_KM
-  alarma = arribada and impacte and not ja_plovia
+  alarma = arribada and impacte and armat
   resultat = {"ara_km": ara, "fa30min_km": abans, "masses": len(masas_ara),
               "area_max": max((m['area_km2'] for m in masas_ara), default=0),
+              "eco_disc": round(radar.echo_area_within_km2(host, past[-1]), 1),
               "nowcast": bool(nowcast), "impacte": impacte,
-              "ja_plovia": ja_plovia, "alarma": alarma}
+              "armat": armat, "alarma": alarma}
   print(resultat)  # queda en Cloud Logging para calibrar umbrales
 
   if _dry(request) or request.args.get('shadow'):
