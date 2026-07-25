@@ -130,12 +130,17 @@ def check_rain_radar(request):
   else:
     impacte = radar.impact_predicted(masas_abans, masas_ara)
 
-  alarma = (ara is not None and ara <= radar.RADI_ALARMA_KM
-            and (abans is None or abans > radar.RADI_ALARMA_KM)
-            and impacte)
+  # refractario: un frente que cruza sigue sobre el pueblo varios frames;
+  # solo disparamos si NO llovia sobre el pueblo en los frames anteriores
+  previos = past[max(0, len(past) - 1 - radar.REFRACTARI_FRAMES):-1]
+  ja_plovia = any(radar.raining_over_village(host, f) for f in previos)
+
+  arribada = ara is not None and ara <= radar.RADI_ALARMA_KM
+  alarma = arribada and impacte and not ja_plovia
   resultat = {"ara_km": ara, "fa30min_km": abans, "masses": len(masas_ara),
               "area_max": max((m['area_km2'] for m in masas_ara), default=0),
-              "nowcast": bool(nowcast), "impacte": impacte, "alarma": alarma}
+              "nowcast": bool(nowcast), "impacte": impacte,
+              "ja_plovia": ja_plovia, "alarma": alarma}
   print(resultat)  # queda en Cloud Logging para calibrar umbrales
 
   if _dry(request) or request.args.get('shadow'):

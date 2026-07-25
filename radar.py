@@ -6,9 +6,10 @@ import requests
 from PIL import Image, ImageDraw
 
 # Deteccion de lluvia acercandose al pueblo con el radar agregado de
-# RainViewer (frames cada ~10 min). La alarma salta solo en el cruce:
-# antes la lluvia estaba a mas de RADI_ALARMA_KM (o no habia) y ahora
-# esta dentro — mismo patron sin estado que check_freeze.
+# RainViewer (frames cada ~10 min). La alarma salta en el flanco de subida
+# (llega un frente grande al radio de alarma con trayectoria de impacto) y
+# un refractario evita re-disparar mientras siga lloviendo sobre el pueblo:
+# todo sin estado, mirando el histgrico de frames que da RainViewer.
 #
 # Escalas: RainViewer solo sirve radar real hasta zoom 7 (mas alla devuelve
 # un placeholder "Zoom Level Not Supported"). Trabajamos en el espacio de
@@ -30,6 +31,12 @@ AREA_MINIMA_KM2 = 50.0
 # umbral sobre la escala de grises dBZ de RainViewer (color 0): filtra
 # ecos debiles (virga, llovizna residual) que no suelen llegar al suelo
 GRIS_MINIM = 40
+# refractario: no re-disparar si ya llovia sobre el pueblo en alguno de los
+# ultimos N frames (~10 min cada uno). Un frente que cruza sigue "dentro"
+# mientras pasa, asi que solo un frente nuevo tras un claro re-arma
+REFRACTARI_FRAMES = 6
+# eco dentro del disco de alarma para considerar que "llueve sobre el pueblo"
+LLIND_INTERIOR_KM2 = 20.0
 
 API_MAPS = 'https://api.rainviewer.com/public/weather-maps.json'
 UA = {'User-Agent': 'meteoCastellcir-bot/1.0 (+https://twitter.com/meteoCastellcir)'}
@@ -136,6 +143,26 @@ def big_masses(host, frame):
 
 def nearest_mass_km(masas):
   return min((m['dist_km'] for m in masas), default=None)
+
+
+def echo_area_within_km2(host, frame, radi_km=RADI_ALARMA_KM):
+  """Area de eco (km2) dentro del disco de radi_km alrededor del pueblo.
+  Barato (recorta al disco): para el refractario sobre frames pasados."""
+  canvas, (vx, vy) = _stitch(_radar_url(host, frame, 0, '0_0'), RADAR_SIZE * RADAR_ESCALA,
+                             radi_km, escala=RADAR_ESCALA, resample=Image.NEAREST)
+  kmpx = km_per_pixel()
+  r_px = radi_km / kmpx
+  box = (int(vx - r_px), int(vy - r_px), math.ceil(vx + r_px), math.ceil(vy + r_px))
+  disc = canvas.crop(box)
+  ample = disc.width
+  cx, cy = vx - box[0], vy - box[1]
+  n = sum(1 for i, (r, g, b, a) in enumerate(disc.getdata())
+          if a > 0 and r >= GRIS_MINIM and math.hypot(i % ample - cx, i // ample - cy) <= r_px)
+  return n * kmpx * kmpx
+
+
+def raining_over_village(host, frame):
+  return echo_area_within_km2(host, frame) >= LLIND_INTERIOR_KM2
 
 
 def impact_predicted(masas_abans, masas_ara, horitzo_min=90):
