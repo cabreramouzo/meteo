@@ -28,9 +28,18 @@ RADI_ESCANEIG_KM = 40.0  # hasta donde buscamos el eco mas cercano
 RADI_IMPACTE_KM = 3.0    # "pasa por el pueblo" = eco previsto a menos de esto
 # solo cuentan masas de lluvia grandes (frentes, no chubascos sueltos):
 AREA_MINIMA_KM2 = 50.0
-# umbral sobre la escala de grises dBZ de RainViewer (color 0): filtra
-# ecos debiles (virga, llovizna residual) que no suelen llegar al suelo
-GRIS_MINIM = 40
+# RainViewer ignora el parametro de paleta en la URL: sempre torna la
+# mateixa (TWC), aixi que classifiquem per color. Ordre d'intensitat
+# calibrat empiricament (distancia mitjana als nuclis grocs del radar):
+# cian clar (mes feble) -> blau clar -> blau mitja -> blau fosc ->
+# groc/taronja/vermell -> rosa. El canal R NO es monoton amb la intensitat.
+ALFA_MINIM = 60           # pixel amb precipitacio
+NIVELL_MODERAT = 3        # blau fosc o mes: pluja de veritat, no plugim
+# una massa nomes compta si porta prou aigua moderada (el fals positiu del
+# 25-jul era tot blau clar) i te prou extensio
+AREA_MODERADA_MIN_KM2 = 20.0
+# emparellament de masses entre frames: descartem salts impossibles
+VELOCITAT_MAX_KM_30MIN = 60.0
 # ventana de historia (frames de ~10 min) para decidir el re-armado
 REFRACTARI_FRAMES = 6
 # histeresis (dos umbrales) sobre el eco dentro del disco de alarma: la
@@ -38,8 +47,10 @@ REFRACTARI_FRAMES = 6
 # debajo de LLIND_CALMA. La alarma se re-arma tras una calma, asi un frente
 # que cruza no repite, pero una tormenta que s'afluixa i es reanima si torna
 # a avisar
-LLIND_ACTIU_KM2 = 40.0
-LLIND_CALMA_KM2 = 5.0
+# calibrats amb la sortida real del 25-jul (pluja moderada dins del disc,
+# la tempesta marxant: 105 -> 36 -> 3 -> 0 km2)
+LLIND_ACTIU_KM2 = 25.0
+LLIND_CALMA_KM2 = 3.0
 
 API_MAPS = 'https://api.rainviewer.com/public/weather-maps.json'
 UA = {'User-Agent': 'meteoCastellcir-bot/1.0 (+https://twitter.com/meteoCastellcir)'}
@@ -95,6 +106,20 @@ def _radar_url(host, frame, color, options):
   return lambda xt, yt: f"{host}{frame['path']}/{RADAR_SIZE}/{RADAR_ZOOM}/{xt}/{yt}/{color}/{options}.png"
 
 
+def nivell(r, g, b):
+  """Nivell d'intensitat 0-5 a partir del color del radar (paleta TWC).
+  Dins dels blaus, com mes fosc mes intens; els colors calids son els
+  nuclis. Calibrat mesurant la distancia mitjana de cada color als nuclis."""
+  if b > r + 30:            # familia blava
+    if g >= 190: return 0   # cian clar: plugim
+    if g >= 150: return 1   # blau clar: feble
+    if g >= 110: return 2   # blau mitja: feble-moderada
+    return 3                # blau fosc: moderada
+  if r > 200 and b > 150:
+    return 5                # rosa/blanc: calamarsa
+  return 4                  # groc/taronja/vermell: forta
+
+
 def _components(pixels):
   """Agrupa pixeles de eco en componentes conexas (8-conectividad)."""
   restantes = set(pixels)
@@ -115,32 +140,44 @@ def _components(pixels):
   return comps
 
 
-def big_masses(host, frame):
-  """Masas de lluvia de area >= AREA_MINIMA_KM2 dentro del radio de
-  escaneo. Devuelve [{area_km2, dist_km, centre_km}] con el centroide en
-  km relativos al pueblo."""
-  # color 0 = escala de grises con los dBZ, sin suavizar: para medir
+def big_masses(host, frame, mostra_max=600):
+  """Masas de lluvia prou grans (>= AREA_MINIMA_KM2) i amb prou pluja
+  moderada (>= AREA_MODERADA_MIN_KM2) dins del radi d'escaneig. Torna
+  [{area_km2, area_moderada_km2, dist_km, centre_km, petjada_km}], amb la
+  petjada mostrejada en km relatius al poble per poder-la traslladar."""
   canvas, (vx, vy) = _stitch(_radar_url(host, frame, 0, '0_0'), RADAR_SIZE * RADAR_ESCALA,
                              RADI_ESCANEIG_KM, escala=RADAR_ESCALA, resample=Image.NEAREST)
   kmpx = km_per_pixel()
   ample = canvas.width
   r_px = RADI_ESCANEIG_KM / kmpx
-  ecos = [(i % ample, i // ample) for i, (r, g, b, a) in enumerate(canvas.getdata())
-          if a > 0 and r >= GRIS_MINIM
-          and abs(i % ample - vx) <= r_px and abs(i // ample - vy) <= r_px]
+
+  ecos = {}
+  for i, (r, g, b, a) in enumerate(canvas.getdata()):
+    if a < ALFA_MINIM:
+      continue
+    x, y = i % ample, i // ample
+    if abs(x - vx) > r_px or abs(y - vy) > r_px:
+      continue
+    ecos[(x, y)] = nivell(r, g, b)
 
   masas = []
-  for comp in _components(ecos):
+  for comp in _components(ecos.keys()):
     area = len(comp) * kmpx * kmpx
     if area < AREA_MINIMA_KM2:
       continue
+    moderada = sum(1 for p in comp if ecos[p] >= NIVELL_MODERAT) * kmpx * kmpx
+    if moderada < AREA_MODERADA_MIN_KM2:
+      continue  # tota plugim: no avisem
     dist = min(math.hypot(x - vx, y - vy) for x, y in comp) * kmpx
     if dist > RADI_ESCANEIG_KM:
       continue
     cx = sum(x for x, _ in comp) / len(comp)
     cy = sum(y for _, y in comp) / len(comp)
-    masas.append({'area_km2': round(area, 1), 'dist_km': round(dist, 1),
-                  'centre_km': ((cx - vx) * kmpx, (cy - vy) * kmpx)})
+    pas = max(1, len(comp) // mostra_max)
+    petjada = [((x - vx) * kmpx, (y - vy) * kmpx) for x, y in comp[::pas]]
+    masas.append({'area_km2': round(area, 1), 'area_moderada_km2': round(moderada, 1),
+                  'dist_km': round(dist, 1), 'centre_km': ((cx - vx) * kmpx, (cy - vy) * kmpx),
+                  'petjada_km': petjada})
   return masas
 
 
@@ -148,9 +185,10 @@ def nearest_mass_km(masas):
   return min((m['dist_km'] for m in masas), default=None)
 
 
-def echo_area_within_km2(host, frame, radi_km=RADI_ALARMA_KM):
-  """Area de eco (km2) dentro del disco de radi_km alrededor del pueblo.
-  Barato (recorta al disco): para el refractario sobre frames pasados."""
+def echo_area_within_km2(host, frame, radi_km=RADI_ALARMA_KM, nivell_minim=NIVELL_MODERAT):
+  """Area (km2) de pluja d'intensitat >= nivell_minim dins del disc de
+  radi_km al voltant del poble. Barat (retalla al disc): per la histeresi
+  sobre els frames passats."""
   canvas, (vx, vy) = _stitch(_radar_url(host, frame, 0, '0_0'), RADAR_SIZE * RADAR_ESCALA,
                              radi_km, escala=RADAR_ESCALA, resample=Image.NEAREST)
   kmpx = km_per_pixel()
@@ -160,7 +198,8 @@ def echo_area_within_km2(host, frame, radi_km=RADI_ALARMA_KM):
   ample = disc.width
   cx, cy = vx - box[0], vy - box[1]
   n = sum(1 for i, (r, g, b, a) in enumerate(disc.getdata())
-          if a > 0 and r >= GRIS_MINIM and math.hypot(i % ample - cx, i // ample - cy) <= r_px)
+          if a >= ALFA_MINIM and nivell(r, g, b) >= nivell_minim
+          and math.hypot(i % ample - cx, i // ample - cy) <= r_px)
   return n * kmpx * kmpx
 
 
@@ -181,28 +220,32 @@ def armed_after_lull(intensitats):
 
 
 def impact_predicted(masas_abans, masas_ara, horitzo_min=90):
-  """Sin nowcast: extrapola el movimiento de la masa mas cercana (centroide
-  hace 30 min -> ahora) y mira si en el horizonte dado pasara a menos de
-  RADI_IMPACTE_KM del pueblo."""
+  """Extrapola el moviment de la massa mes propera (centroide fa 30 min ->
+  ara) i mira si la seva PETJADA arribara a menys de RADI_IMPACTE_KM del
+  poble dins de l'horitzo. Traslladem la forma real: una massa que passa
+  de llarg cap a l'est no compta, encara que sigui gran."""
   if not masas_ara:
     return False
   masa = min(masas_ara, key=lambda m: m['dist_km'])
   if masa['dist_km'] <= RADI_IMPACTE_KM:
-    return True
+    return True  # ja hi es a sobre
   if not masas_abans:
     return False
+
   cx, cy = masa['centre_km']
-  # la masa de hace 30 min con el centroide mas parecido
-  px, py = min((m['centre_km'] for m in masas_abans),
-               key=lambda c: math.hypot(c[0] - cx, c[1] - cy))
-  vx30, vy30 = cx - px, cy - py  # km por 30 min
-  if math.hypot(vx30, vy30) < 1:  # practicamente estatica
+  previa = min(masas_abans,
+               key=lambda m: math.hypot(m['centre_km'][0] - cx, m['centre_km'][1] - cy))
+  px, py = previa['centre_km']
+  vx30, vy30 = cx - px, cy - py  # km per 30 min
+  desplacament = math.hypot(vx30, vy30)
+  if desplacament < 1:                        # practicament estatica
     return False
-  # seguimos el centroide: hay impacto si pasa a menos del radio de
-  # impacto mas el radio efectivo de la propia masa
-  llindar = RADI_IMPACTE_KM + math.sqrt(masa['area_km2'] / math.pi)
+  if desplacament > VELOCITAT_MAX_KM_30MIN:   # emparellament poc fiable
+    return False
+
   for t in range(10, horitzo_min + 1, 10):
-    if math.hypot(cx + vx30 * t / 30, cy + vy30 * t / 30) <= llindar:
+    dx, dy = vx30 * t / 30, vy30 * t / 30
+    if min(math.hypot(x + dx, y + dy) for x, y in masa['petjada_km']) <= RADI_IMPACTE_KM:
       return True
   return False
 

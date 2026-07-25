@@ -138,8 +138,10 @@ def check_rain_radar(request):
 
   arribada = ara is not None and ara <= radar.RADI_ALARMA_KM
   alarma = arribada and impacte and armat
+  propera = min(masas_ara, key=lambda m: m['dist_km'], default=None)
   resultat = {"ara_km": ara, "fa30min_km": abans, "masses": len(masas_ara),
               "area_max": max((m['area_km2'] for m in masas_ara), default=0),
+              "area_moderada": propera['area_moderada_km2'] if propera else 0,
               "eco_disc": round(radar.echo_area_within_km2(host, past[-1]), 1),
               "nowcast": bool(nowcast), "impacte": impacte,
               "armat": armat, "alarma": alarma}
