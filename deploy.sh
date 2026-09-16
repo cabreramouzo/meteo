@@ -17,9 +17,9 @@ if gcloud secrets describe telegram-bot-token --project=$PROJECT >/dev/null 2>&1
   TW="$TW,TELEGRAM_BOT_TOKEN=telegram-bot-token:latest,TELEGRAM_CHAT_ID=telegram-chat-id:latest"
 fi
 
-ALL="tweet-forecast tweet-current tweet-moon tweet-warnings check-freeze tweet-rain check-rain-radar"
+ALL="tweet-forecast tweet-current tweet-moon tweet-warnings check-freeze tweet-rain check-rain-radar alert-telegram"
 for fn in ${@:-$ALL}; do
-  mem=256Mi; env=""
+  mem=256Mi; env=""; auth="--no-allow-unauthenticated"
   case $fn in
     tweet-forecast)   entry=tweet_forecast;   secrets="$TW,$MC" ;;
     tweet-current)    entry=tweet_current;    secrets="$TW,$WK" ;;
@@ -28,11 +28,13 @@ for fn in ${@:-$ALL}; do
     check-freeze)     entry=check_freeze;     secrets="$TW,$NA"; env="GCP_PROJECT=$PROJECT" ;;
     tweet-rain)       entry=tweet_rain;       secrets="$TW,$NA"; env="GCP_PROJECT=$PROJECT" ;;
     check-rain-radar) entry=check_rain_radar; secrets="$TW";     mem=512Mi ;;
+    alert-telegram)   entry=alert_telegram;   secrets="$TW,ALERT_WEBHOOK_TOKEN=alert-webhook-token:latest"
+                      env="TELEGRAM_ALERT_CHAT_ID=5277157"; auth="--allow-unauthenticated" ;;
     *) echo "funcion desconocida: $fn"; exit 1 ;;
   esac
   echo "=== $fn"
   gcloud functions deploy "$fn" --project=$PROJECT --gen2 --runtime=python312 --region=$REGION \
-    --source=. --entry-point="$entry" --trigger-http --no-allow-unauthenticated \
+    --source=. --entry-point="$entry" --trigger-http $auth \
     --memory="$mem" --timeout=120s --set-secrets="$secrets" ${env:+--set-env-vars="$env"} -q 2>&1 \
     | grep -E "^state:|ERROR" || true
 done

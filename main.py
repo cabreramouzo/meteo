@@ -1,6 +1,10 @@
 # Entry points para Google Cloud Functions (gen2, trigger HTTP via Cloud
 # Scheduler). Las credenciales llegan por variables de entorno: ver README.
 
+import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import functions_framework
 
 import emoji
@@ -8,6 +12,7 @@ import emoji
 import meteocat
 import netatmo
 import radar
+import telegram
 import tweet_current_meteo
 import tweet_moon_phase
 from publish import publish
@@ -158,3 +163,24 @@ def tweet_rain(request):
   tweet = emoji.emojize(':cloud_with_rain:') + f" Ahir es van recollir {_coma(litros)} l/m² a Castellcir."
   publish(tweet)
   return "tweeted"
+
+
+@functions_framework.http
+def alert_telegram(request):
+  # webhook de Cloud Monitoring: reenvia la alerta al Telegram privado del
+  # administrador. Es publica (Monitoring no puede autenticarse con IAM),
+  # asi que va protegida por un token en la URL
+  if request.args.get('token') != os.environ.get('ALERT_WEBHOOK_TOKEN'):
+    return ('forbidden', 403)
+
+  inc = (request.get_json(silent=True) or {}).get('incident', {})
+  estat = inc.get('state', '?')
+  icona = emoji.emojize(':police_car_light:') if estat == 'open' else emoji.emojize(':check_mark_button:')
+  quan = datetime.now(ZoneInfo('Europe/Madrid')).strftime('%d/%m %H:%M')
+  text = (f"{icona} Bot meteo — alerta {estat.upper()} ({quan})\n"
+          f"{inc.get('policy_name', '')}\n"
+          f"{inc.get('summary', '')}\n\n"
+          f"{inc.get('documentation', {}).get('content', '')}\n"
+          f"{inc.get('url', '')}")
+  telegram.send_text(text, chat_id=os.environ['TELEGRAM_ALERT_CHAT_ID'])
+  return "OK"

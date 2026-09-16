@@ -89,4 +89,6 @@ y 21:30, luna en fases principales, lluvia/avisos/radar cuando toque) salen
 `402 Payment Required` y todo deja de publicarse: recargar en console.x.com.
 
 Hay una alerta de Cloud Monitoring ("meteo bot: error en una funcion") que
-envía un email cuando cualquier función falla.
+avisa cuando cualquier función falla, por email y por Telegram privado
+(webhook → función `alert_telegram`, protegida con el token
+`alert-webhook-token`; el chat de destino va en `TELEGRAM_ALERT_CHAT_ID`).

@@ -16,9 +16,11 @@ def _call(cfg, method, **params):
   return body['result']
 
 
-def send_text(text):
+def send_text(text, chat_id=None):
+  # chat_id por defecto: el canal publico; se puede apuntar a otro chat
+  # (p.ej. el privado del administrador para las alertas)
   cfg = get_telegram_cfg()
-  return _call(cfg, 'sendMessage', data={'chat_id': cfg['chat_id'], 'text': text,
+  return _call(cfg, 'sendMessage', data={'chat_id': chat_id or cfg['chat_id'], 'text': text,
                                          'disable_web_page_preview': True})
 
 
