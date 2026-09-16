@@ -26,6 +26,10 @@ RADAR_ZOOM, RADAR_SIZE, RADAR_ESCALA = 7, 512, 2  # 512*2 = 1024 px globales/til
 RADI_ALARMA_KM = 10.0
 RADI_ESCANEIG_KM = 40.0  # hasta donde buscamos el eco mas cercano
 RADI_IMPACTE_KM = 3.0    # "pasa por el pueblo" = eco previsto a menos de esto
+# per avisar volem estar MOLT segurs: pluja moderada (no el fleco) prevista
+# sobre el poble dins d'un horitzo curt, amb una extensio minima
+HORITZO_MIN = 60
+AREA_IMPACTE_MODERADA_KM2 = 3.0
 # solo cuentan masas de lluvia grandes (frentes, no chubascos sueltos):
 AREA_MINIMA_KM2 = 50.0
 # RainViewer ignora el parametro de paleta en la URL: sempre torna la
@@ -174,10 +178,10 @@ def big_masses(host, frame, mostra_max=600):
     cx = sum(x for x, _ in comp) / len(comp)
     cy = sum(y for _, y in comp) / len(comp)
     pas = max(1, len(comp) // mostra_max)
-    petjada = [((x - vx) * kmpx, (y - vy) * kmpx) for x, y in comp[::pas]]
+    petjada = [((x - vx) * kmpx, (y - vy) * kmpx, ecos[(x, y)]) for x, y in comp[::pas]]
     masas.append({'area_km2': round(area, 1), 'area_moderada_km2': round(moderada, 1),
                   'dist_km': round(dist, 1), 'centre_km': ((cx - vx) * kmpx, (cy - vy) * kmpx),
-                  'petjada_km': petjada})
+                  'petjada_km': petjada, 'km2_per_mostra': pas * kmpx * kmpx})
   return masas
 
 
@@ -219,16 +223,25 @@ def armed_after_lull(intensitats):
   return armat
 
 
-def impact_predicted(masas_abans, masas_ara, horitzo_min=90):
+def _moderada_sobre_poble_km2(masa, dx=0.0, dy=0.0):
+  """km2 de pluja moderada+ de la petjada (traslladada dx,dy) que cauen a
+  menys de RADI_IMPACTE_KM del poble."""
+  n = sum(1 for x, y, niv in masa['petjada_km']
+          if niv >= NIVELL_MODERAT and math.hypot(x + dx, y + dy) <= RADI_IMPACTE_KM)
+  return n * masa['km2_per_mostra']
+
+
+def impact_predicted(masas_abans, masas_ara, horitzo_min=HORITZO_MIN):
   """Extrapola el moviment de la massa mes propera (centroide fa 30 min ->
-  ara) i mira si la seva PETJADA arribara a menys de RADI_IMPACTE_KM del
-  poble dins de l'horitzo. Traslladem la forma real: una massa que passa
-  de llarg cap a l'est no compta, encara que sigui gran."""
+  ara) i nomes dona impacte si, dins de l'horitzo, cau PLUJA MODERADA (no
+  el fleco blau clar) sobre el poble amb una extensio minima. Traslladem
+  la forma real: una massa que passa de llarg no compta, encara que sigui
+  gran."""
   if not masas_ara:
     return False
   masa = min(masas_ara, key=lambda m: m['dist_km'])
-  if masa['dist_km'] <= RADI_IMPACTE_KM:
-    return True  # ja hi es a sobre
+  if _moderada_sobre_poble_km2(masa) >= AREA_IMPACTE_MODERADA_KM2:
+    return True  # ja plou moderat a sobre
   if not masas_abans:
     return False
 
@@ -244,8 +257,7 @@ def impact_predicted(masas_abans, masas_ara, horitzo_min=90):
     return False
 
   for t in range(10, horitzo_min + 1, 10):
-    dx, dy = vx30 * t / 30, vy30 * t / 30
-    if min(math.hypot(x + dx, y + dy) for x, y in masa['petjada_km']) <= RADI_IMPACTE_KM:
+    if _moderada_sobre_poble_km2(masa, vx30 * t / 30, vy30 * t / 30) >= AREA_IMPACTE_MODERADA_KM2:
       return True
   return False
 

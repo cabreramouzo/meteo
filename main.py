@@ -122,11 +122,9 @@ def check_rain_radar(request):
   abans = radar.nearest_mass_km(masas_abans)
 
   if nowcast:
-    # el nowcast de RainViewer ya modela el movimiento: impacto si a +30
-    # min preve una masa grande sobre el pueblo
-    masas_fut = radar.big_masses(host, nowcast[-1])
-    fut = radar.nearest_mass_km(masas_fut)
-    impacte = fut is not None and fut <= radar.RADI_IMPACTE_KM
+    # el nowcast de RainViewer ya modela el movimiento: impacto solo si
+    # preve pluja MODERADA sobre el poble (no el fleco)
+    impacte = radar.echo_area_within_km2(host, nowcast[-1], radar.RADI_IMPACTE_KM) >= radar.AREA_IMPACTE_MODERADA_KM2
   else:
     impacte = radar.impact_predicted(masas_abans, masas_ara)
 
