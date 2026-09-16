@@ -59,7 +59,7 @@ def netatmo_daily(year, module_type, types):
 
 def netatmo_rain(year):
   days = netatmo_daily(year, 'NAModule3', 'sum_rain')
-  return {d: v[0] for d, v in days.items() if v[0] is not None}
+  return {d: v[0] + netatmo.rain_adjustment(d) for d, v in days.items() if v[0] is not None}
 
 
 def netatmo_temps(year):

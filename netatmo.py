@@ -1,5 +1,5 @@
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 import requests
 from config import get_netatmo_cfg, load_netatmo_refresh_token, save_netatmo_refresh_token
@@ -9,6 +9,18 @@ from config import get_netatmo_cfg, load_netatmo_refresh_token, save_netatmo_ref
 # get_yesterday_rain().
 
 API = 'https://api.netatmo.com'
+
+# Manual rain corrections (mm) for days with known data loss. The outdoor
+# modules do not buffer while the base station is off, so a power cut loses
+# whatever falls. Estimates come from Meteocat's Muntanyola station scaled
+# by that day's Castellcir/Muntanyola ratio.
+RAIN_ADJUSTMENTS_MM = {
+  date(2026, 9, 16): 5.0,   # power cut 22:33-00:27 during a downpour (Muntanyola 1.2-5 mm x1.45)
+}
+
+
+def rain_adjustment(day):
+  return RAIN_ADJUSTMENTS_MM.get(day, 0.0)
 
 
 def request_with_retry(method, url, tries=3, **kwargs):
@@ -82,4 +94,4 @@ def get_yesterday_rain():
                         scale='1day', type='sum_rain',
                         date_begin=int(ayer.timestamp()),
                         date_end=int(hoy.timestamp()) - 1)
-  return valores[0] if valores else 0.0
+  return (valores[0] if valores else 0.0) + rain_adjustment(ayer.date())
