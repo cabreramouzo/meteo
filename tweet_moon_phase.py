@@ -21,6 +21,15 @@ phases_dict = {
 }
 
 
+# fases que valen un tweet (les intermedies "gibosa"/"creixent" aporten poc
+# i cada tweet costa credits de X)
+FASES_PRINCIPALS = {"new", "firstQuarter", "full", "thirdQuarter", "lastQuarter"}
+
+
+def is_principal_phase(datos):
+  return datos['forecastDaily']['days'][0]['moonPhase'] in FASES_PRINCIPALS
+
+
 def build_tweet(datos):
   fase = datos['forecastDaily']['days'][0]['moonPhase']
   print(f'moonPhase={fase}')

@@ -58,8 +58,11 @@ def tweet_moon(request):
   # fase lunar de hoy (WeatherKit)
   datos = get_weather(lat, lon, "forecastDaily")
   tweet = tweet_moon_phase.build_tweet(datos)
+  principal = tweet_moon_phase.is_principal_phase(datos)
   if _dry(request):
-    return {"dry": True, "tweets": [tweet]}
+    return {"dry": True, "principal": principal, "tweets": [tweet]}
+  if not principal:
+    return "minor phase, skipped"
 
   get_client().create_tweet(text=tweet)
   return "OK"

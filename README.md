@@ -8,7 +8,7 @@ Tres funciones, pensadas para Google Cloud Functions (gen2) + Cloud Scheduler:
 |---|---|---|
 | `tweet_forecast` | Predicción general de Catalunya (en hilo si no cabe) | Meteocat |
 | `tweet_current` | Tiempo actual del pueblo (temp, humedad, presión) | Apple WeatherKit |
-| `tweet_moon` | Fase lunar del día | Apple WeatherKit |
+| `tweet_moon` | Fase lunar, solo en las 4 fases principales (nova, quarts, plena) | Apple WeatherKit |
 | `check_freeze` | Aviso al cruzar 0 °C (solo en el cruce, no repite) | Netatmo |
 | `tweet_rain` | Lluvia acumulada de ayer, solo si llovió (≥0,1 l/m²) | Netatmo |
 | `tweet_warnings` | Avisos SMP en firme que afecten al Moianès (cada aviso una sola vez) | Meteocat |
@@ -78,3 +78,14 @@ gcloud scheduler jobs create http tweet-forecast-mati \
 ```
 
 (repite para `tweet-forecast` de tarde, `tweet-current` y `tweet-moon` con sus horarios)
+
+## Coste en X
+
+X cobra por uso: **$0,015 por tweet sin enlace** ($0,20 si lleva URL — no poner
+enlaces nunca). Con la programación actual (predicción 9:00, tiempo actual 8:00
+y 21:30, luna en fases principales, lluvia/avisos/radar cuando toque) salen
+~150 tweets/mes ≈ $2,25. Si se agotan los créditos la API devuelve
+`402 Payment Required` y todo deja de publicarse: recargar en console.x.com.
+
+Hay una alerta de Cloud Monitoring ("meteo bot: error en una funcion") que
+envía un email cuando cualquier función falla.
