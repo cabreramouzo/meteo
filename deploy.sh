@@ -17,7 +17,7 @@ if gcloud secrets describe telegram-bot-token --project=$PROJECT >/dev/null 2>&1
   TW="$TW,TELEGRAM_BOT_TOKEN=telegram-bot-token:latest,TELEGRAM_CHAT_ID=telegram-chat-id:latest"
 fi
 
-ALL="tweet-forecast tweet-current tweet-moon tweet-warnings check-freeze tweet-rain check-rain-radar alert-telegram"
+ALL="tweet-forecast tweet-current tweet-moon tweet-warnings check-freeze tweet-rain check-rain-radar alert-telegram tweet-year-summary"
 for fn in ${@:-$ALL}; do
   mem=256Mi; env=""; auth="--no-allow-unauthenticated"
   case $fn in
@@ -28,6 +28,7 @@ for fn in ${@:-$ALL}; do
     check-freeze)     entry=check_freeze;     secrets="$TW,$NA"; env="GCP_PROJECT=$PROJECT" ;;
     tweet-rain)       entry=tweet_rain;       secrets="$TW,$NA"; env="GCP_PROJECT=$PROJECT" ;;
     check-rain-radar) entry=check_rain_radar; secrets="$TW";     mem=512Mi ;;
+    tweet-year-summary) entry=tweet_year_summary; secrets="$TW,$MC,$NA"; env="GCP_PROJECT=$PROJECT" ;;
     alert-telegram)   entry=alert_telegram;   secrets="$TW,ALERT_WEBHOOK_TOKEN=alert-webhook-token:latest"
                       env="TELEGRAM_ALERT_CHAT_ID=5277157"; auth="--allow-unauthenticated" ;;
     *) echo "funcion desconocida: $fn"; exit 1 ;;

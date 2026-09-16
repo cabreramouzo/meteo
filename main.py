@@ -12,6 +12,7 @@ import emoji
 import meteocat
 import netatmo
 import radar
+import summary
 import telegram
 import tweet_current_meteo
 import tweet_moon_phase
@@ -163,6 +164,18 @@ def tweet_rain(request):
   tweet = emoji.emojize(':cloud_with_rain:') + f" Ahir es van recollir {_coma(litros)} l/m² a Castellcir."
   publish(tweet)
   return "tweeted"
+
+
+@functions_framework.http
+def tweet_year_summary(request):
+  # yearly summary (runs on Dec 31); ?year=YYYY builds it for another year
+  year = int(request.args.get('year') or datetime.now(ZoneInfo('Europe/Madrid')).year)
+  parts = summary.build_summary_parts(summary.year_summary(year))
+  if _dry(request):
+    return {"dry": True, "tweets": parts}
+
+  publish(parts)
+  return "OK"
 
 
 @functions_framework.http

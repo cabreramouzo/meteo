@@ -11,10 +11,20 @@ from config import get_netatmo_cfg, load_netatmo_refresh_token, save_netatmo_ref
 API = 'https://api.netatmo.com'
 
 
+def request_with_retry(method, url, tries=3, **kwargs):
+  # Netatmo's API returns sporadic 503s; retry with a short backoff
+  for attempt in range(tries):
+    r = requests.request(method, url, timeout=30, **kwargs)
+    if r.status_code < 500 or attempt == tries - 1:
+      r.raise_for_status()
+      return r
+    time.sleep(2 * (attempt + 1))
+
+
 def _access_token():
   cfg = get_netatmo_cfg()
   refresh = load_netatmo_refresh_token()
-  r = requests.post(f'{API}/oauth2/token', data={
+  r = request_with_retry('POST', f'{API}/oauth2/token', data={
     'grant_type': 'refresh_token',
     'refresh_token': refresh,
     'client_id': cfg['client_id'],
@@ -30,18 +40,16 @@ def _access_token():
 
 
 def _station(token):
-  r = requests.get(f'{API}/api/getstationsdata', headers={'Authorization': f'Bearer {token}'})
-  r.raise_for_status()
+  r = request_with_retry('GET', f'{API}/api/getstationsdata', headers={'Authorization': f'Bearer {token}'})
   device = r.json()['body']['devices'][0]
   modules = {m['type']: m['_id'] for m in device['modules']}
   return device['_id'], modules
 
 
 def _getmeasure(token, device_id, module_id, **params):
-  r = requests.get(f'{API}/api/getmeasure', headers={'Authorization': f'Bearer {token}'},
-                   params={'device_id': device_id, 'module_id': module_id,
-                           'optimize': 'false', **params})
-  r.raise_for_status()
+  r = request_with_retry('GET', f'{API}/api/getmeasure', headers={'Authorization': f'Bearer {token}'},
+                         params={'device_id': device_id, 'module_id': module_id,
+                                 'optimize': 'false', **params})
   body = r.json()['body']
   # segun el caso llega como {timestamp: [valor]} o como lista (vacia si el
   # modulo no ha reportado, p.ej. sin bateria) de {beg_time, value: [[v]]}

@@ -12,6 +12,7 @@ Tres funciones, pensadas para Google Cloud Functions (gen2) + Cloud Scheduler:
 | `check_freeze` | Aviso al cruzar 0 °C (solo en el cruce, no repite) | Netatmo |
 | `tweet_rain` | Lluvia acumulada de ayer, solo si llovió (≥0,1 l/m²) | Netatmo |
 | `tweet_warnings` | Avisos SMP en firme que afecten al Moianès (cada aviso una sola vez) | Meteocat |
+| `tweet_year_summary` | Resumen del año el 31 de diciembre (lluvia total, día/mes más lluvioso, máx/mín con fecha, media, días de helada y de calor). `?year=YYYY` para otro año | Netatmo + XEMA Muntanyola (temperatura, mientras el módulo exterior no tenga datos del año) |
 
 Todas aceptan `?dry=1`: construyen la respuesta pero no publican.
 
