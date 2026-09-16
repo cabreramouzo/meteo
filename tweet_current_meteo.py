@@ -1,5 +1,5 @@
 from weatherkit import get_weather
-from twitter import get_client
+from publish import publish
 import emoji
 import random
 
@@ -101,7 +101,7 @@ def main():
   datos = get_weather(lat, lon, "currentWeather", lang=lang)
   tweet = build_tweet(datos)
 
-  get_client().create_tweet(text=tweet)
+  publish(tweet)
 
 
 if __name__ == "__main__":

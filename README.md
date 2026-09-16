@@ -29,6 +29,7 @@ Por variables de entorno (en local, si faltan, se usa `my_keys.py`, que está en
 | `WK_KEY_ID` | ID de la clave WeatherKit (los 10 caracteres del AuthKey_XXX.p8) |
 | `WK_PRIVATE_KEY` | Contenido PEM completo del fichero `.p8` |
 | `METEOCAT_API_KEY` | API key de Meteocat |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | (opcional) bot de @BotFather y `@canal`: todo se publica también en Telegram |
 | `NETATMO_CLIENT_ID` / `NETATMO_CLIENT_SECRET` | App de Netatmo (dev.netatmo.com) |
 | `GCP_PROJECT` | ID del proyecto (para que la función reescriba el secreto del token) |
 
@@ -56,7 +57,7 @@ echo -n "$TW_CONSUMER_KEY" | gcloud secrets create tw-consumer-key --data-file=-
 gcloud secrets create wk-private-key --data-file=AuthKey_XXXXXXXXXX.p8
 ```
 
-Despliega cada función (mismo código fuente, distinto entry point):
+Despliega con `./deploy.sh` (todas) o `./deploy.sh tweet-current` (una). A mano, cada función es:
 
 ```bash
 for fn in tweet_forecast tweet_current tweet_moon; do

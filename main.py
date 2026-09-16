@@ -1,9 +1,6 @@
 # Entry points para Google Cloud Functions (gen2, trigger HTTP via Cloud
 # Scheduler). Las credenciales llegan por variables de entorno: ver README.
 
-import io
-from time import sleep
-
 import functions_framework
 
 import emoji
@@ -13,7 +10,7 @@ import netatmo
 import radar
 import tweet_current_meteo
 import tweet_moon_phase
-from twitter import get_client, get_api_v1
+from publish import publish
 from weatherkit import get_weather
 
 lat = 41.770358
@@ -32,12 +29,7 @@ def tweet_forecast(request):
   if _dry(request):
     return {"dry": True, "tweets": list_tweets}
 
-  client = get_client()
-  tweet = client.create_tweet(text=list_tweets[0])
-  for text in list_tweets[1:]:
-    sleep(5)  # delay for API call
-    tweet = client.create_tweet(text=text, in_reply_to_tweet_id=tweet.data["id"])
-
+  publish(list_tweets)
   return "OK"
 
 
@@ -49,7 +41,7 @@ def tweet_current(request):
   if _dry(request):
     return {"dry": True, "tweets": [tweet]}
 
-  get_client().create_tweet(text=tweet)
+  publish(tweet)
   return "OK"
 
 
@@ -64,7 +56,7 @@ def tweet_moon(request):
   if not principal:
     return "minor phase, skipped"
 
-  get_client().create_tweet(text=tweet)
+  publish(tweet)
   return "OK"
 
 
@@ -78,15 +70,8 @@ def tweet_warnings(request):
   if not textos:
     return "no new warnings"
 
-  client = get_client()
   for texto in textos:
-    tweet = None
-    for parte in meteocat.split_long(texto):
-      if tweet is None:
-        tweet = client.create_tweet(text=parte)
-      else:
-        sleep(5)  # delay for API call
-        tweet = client.create_tweet(text=parte, in_reply_to_tweet_id=tweet.data["id"])
+    publish(meteocat.split_long(texto))
   return "tweeted"
 
 
@@ -107,7 +92,7 @@ def check_freeze(request):
   anterior, actual = temps
   if anterior >= 0 and actual < 0:
     tweet = emoji.emojize(':snowflake:') + f" Glaçada a Castellcir! Ara mateix {_coma(actual)} °C."
-    get_client().create_tweet(text=tweet)
+    publish(tweet)
     return "tweeted"
   return "no crossing"
 
@@ -154,15 +139,10 @@ def check_rain_radar(request):
     return "no alarm"
 
   img = radar.build_radar_image(host, past[-1])
-  buf = io.BytesIO()
-  img.save(buf, format='PNG')
-  buf.seek(0)
-  media = get_api_v1().media_upload(filename='radar.png', file=buf)
-
   tweet = (emoji.emojize(':cloud_with_rain:')
            + f" Pluja apropant-se a Castellcir! El radar detecta un front de precipitació a uns {round(ara)} km."
            + " Possible pluja en breu.")
-  get_client().create_tweet(text=tweet, media_ids=[media.media_id])
+  publish(tweet, image=img)
   return "tweeted"
 
 
@@ -176,5 +156,5 @@ def tweet_rain(request):
     return "no rain"
 
   tweet = emoji.emojize(':cloud_with_rain:') + f" Ahir es van recollir {_coma(litros)} l/m² a Castellcir."
-  get_client().create_tweet(text=tweet)
+  publish(tweet)
   return "tweeted"

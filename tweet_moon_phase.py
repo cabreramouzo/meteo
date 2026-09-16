@@ -1,5 +1,5 @@
 from weatherkit import get_weather
-from twitter import get_client
+from publish import publish
 import emoji
 
 lat = 41.770358
@@ -44,7 +44,7 @@ def main():
   datos = get_weather(lat, lon, "forecastDaily", lang=lang)
   tweet = build_tweet(datos)
 
-  get_client().create_tweet(text=tweet)
+  publish(tweet)
 
 
 if __name__ == "__main__":

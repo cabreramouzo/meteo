@@ -43,3 +43,13 @@ def get_netatmo_cfg():
     'client_id': '...',
     'client_secret': '...',
   }
+
+
+def get_telegram_cfg():
+  # Canal de Telegram (opcional). 1) Habla con @BotFather > /newbot y copia
+  # el token. 2) Crea un canal publico y anade el bot como administrador con
+  # permiso de publicar. 3) chat_id = '@nombre_del_canal'.
+  return {
+    'bot_token': '123456789:AAAA...',
+    'chat_id': '@meteoCastellcir',
+  }

@@ -97,3 +97,16 @@ def save_netatmo_refresh_token(token):
     with open(NETATMO_TOKEN_FILE, 'w') as f:
       f.write(token)
     os.chmod(NETATMO_TOKEN_FILE, 0o600)
+
+
+def get_telegram_cfg():
+  # canal de Telegram (opcional): token del bot de @BotFather y chat_id del
+  # canal (@nombre_del_canal o el id numerico -100...)
+  cfg = _from_env({
+    'bot_token': 'TELEGRAM_BOT_TOKEN',
+    'chat_id': 'TELEGRAM_CHAT_ID',
+  })
+  if cfg:
+    return cfg
+  from my_keys import get_telegram_cfg as local_cfg
+  return local_cfg()
