@@ -29,19 +29,23 @@ RADI_IMPACTE_KM = 3.0    # "pasa por el pueblo" = eco previsto a menos de esto
 # per avisar volem estar MOLT segurs: pluja moderada (no el fleco) prevista
 # sobre el poble dins d'un horitzo curt, amb una extensio minima
 HORITZO_MIN = 60
-AREA_IMPACTE_MODERADA_KM2 = 3.0
-# solo cuentan masas de lluvia grandes (frentes, no chubascos sueltos):
-AREA_MINIMA_KM2 = 50.0
+AREA_IMPACTE_MODERADA_KM2 = 8.0
+# only large rain masses count (fronts, not isolated showers):
+AREA_MINIMA_KM2 = 100.0
 # RainViewer ignora el parametro de paleta en la URL: sempre torna la
 # mateixa (TWC), aixi que classifiquem per color. Ordre d'intensitat
 # calibrat empiricament (distancia mitjana als nuclis grocs del radar):
 # cian clar (mes feble) -> blau clar -> blau mitja -> blau fosc ->
 # groc/taronja/vermell -> rosa. El canal R NO es monoton amb la intensitat.
-ALFA_MINIM = 60           # pixel amb precipitacio
-NIVELL_MODERAT = 3        # blau fosc o mes: pluja de veritat, no plugim
-# una massa nomes compta si porta prou aigua moderada (el fals positiu del
-# 25-jul era tot blau clar) i te prou extensio
-AREA_MODERADA_MIN_KM2 = 20.0
+ALFA_MINIM = 100          # real rain pixels are alpha >= 110 (mostly 255)
+# RainViewer also paints a translucent grey/beige field (alpha ~50-70,
+# e.g. RGB(127,120,103)) for sub-threshold echo / clutter fanning out from
+# the radar site. It is not precipitation: reject low-saturation pixels
+SATURACIO_MINIMA = 40
+NIVELL_MODERAT = 3        # dark blue or warmer: real rain, not drizzle
+# a mass only counts if it carries a considerable amount of moderate rain
+# (the 25-jul false positive was all light blue) and is large enough
+AREA_MODERADA_MIN_KM2 = 60.0
 # emparellament de masses entre frames: descartem salts impossibles
 VELOCITAT_MAX_KM_30MIN = 60.0
 # ventana de historia (frames de ~10 min) para decidir el re-armado
@@ -110,11 +114,19 @@ def _radar_url(host, frame, color, options):
   return lambda xt, yt: f"{host}{frame['path']}/{RADAR_SIZE}/{RADAR_ZOOM}/{xt}/{yt}/{color}/{options}.png"
 
 
+def is_precip(r, g, b, a):
+  """True for a pixel that is actual precipitation (opaque enough and a
+  saturated colour), False for background/clutter greys."""
+  return a >= ALFA_MINIM and (max(r, g, b) - min(r, g, b)) >= SATURACIO_MINIMA
+
+
 def nivell(r, g, b):
-  """Nivell d'intensitat 0-5 a partir del color del radar (paleta TWC).
-  Dins dels blaus, com mes fosc mes intens; els colors calids son els
-  nuclis. Calibrat mesurant la distancia mitjana de cada color als nuclis."""
-  if b > r + 30:            # familia blava
+  """Intensity level 0-5 from the radar colour (TWC palette). Within the
+  blues, darker is stronger; warm colours are the cores. Calibrated by
+  measuring each colour's mean distance to the storm cores."""
+  if (max(r, g, b) - min(r, g, b)) < SATURACIO_MINIMA:
+    return 0                # grey: clutter / sub-threshold echo
+  if b > r + 30:            # blue family
     if g >= 190: return 0   # cian clar: plugim
     if g >= 150: return 1   # blau clar: feble
     if g >= 110: return 2   # blau mitja: feble-moderada
@@ -157,7 +169,7 @@ def big_masses(host, frame, mostra_max=600):
 
   ecos = {}
   for i, (r, g, b, a) in enumerate(canvas.getdata()):
-    if a < ALFA_MINIM:
+    if not is_precip(r, g, b, a):
       continue
     x, y = i % ample, i // ample
     if abs(x - vx) > r_px or abs(y - vy) > r_px:
@@ -202,7 +214,7 @@ def echo_area_within_km2(host, frame, radi_km=RADI_ALARMA_KM, nivell_minim=NIVEL
   ample = disc.width
   cx, cy = vx - box[0], vy - box[1]
   n = sum(1 for i, (r, g, b, a) in enumerate(disc.getdata())
-          if a >= ALFA_MINIM and nivell(r, g, b) >= nivell_minim
+          if is_precip(r, g, b, a) and nivell(r, g, b) >= nivell_minim
           and math.hypot(i % ample - cx, i // ample - cy) <= r_px)
   return n * kmpx * kmpx
 
@@ -276,7 +288,10 @@ def build_radar_image(host, frame, mida=480):
   # alineo los dos canvas por la posicion del pueblo y recorto centrado
   caixa_mapa = (int(vx - mida / 2), int(vy - mida / 2), int(vx + mida / 2), int(vy + mida / 2))
   caixa_radar = (int(rx - mida / 2), int(ry - mida / 2), int(rx + mida / 2), int(ry + mida / 2))
-  img = Image.alpha_composite(mapa.crop(caixa_mapa), radar.crop(caixa_radar))
+  capa = radar.crop(caixa_radar)
+  # drop the grey clutter field so the capture shows real rain only
+  capa.putdata([(r, g, b, a if is_precip(r, g, b, a) else 0) for r, g, b, a in capa.getdata()])
+  img = Image.alpha_composite(mapa.crop(caixa_mapa), capa)
   cx = cy = mida / 2
 
   draw = ImageDraw.Draw(img)
